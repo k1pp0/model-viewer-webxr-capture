@@ -1,0 +1,91 @@
+{
+  "name": "@k1pp0/model-viewer-webxr-capture",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "WebXR AR screenshot capture for <model-viewer>, including shutter / flash / preview UI.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k1pp0/model-viewer-webxr-capture.git"
+  },
+  "bugs": {
+    "url": "https://github.com/k1pp0/model-viewer-webxr-capture/issues"
+  },
+  "homepage": "https://github.com/k1pp0/model-viewer-webxr-capture#readme",
+  "license": "MIT",
+  "author": "k1pp0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "main": "dist/model-viewer-webxr-capture.min.js",
+  "module": "lib/model-viewer-webxr-capture.js",
+  "files": [
+    "src",
+    "lib",
+    "dist/model-viewer-webxr-capture.js",
+    "dist/model-viewer-webxr-capture.js.map",
+    "dist/model-viewer-webxr-capture.min.js",
+    "dist/model-viewer-webxr-capture.min.js.map",
+    "dist/model-viewer-webxr-capture-bundled.min.js",
+    "dist/model-viewer-webxr-capture-bundled.min.js.map",
+    "dist/model-viewer-webxr-capture.d.ts"
+  ],
+  "typings": "lib/model-viewer-webxr-capture.d.ts",
+  "types": "lib/model-viewer-webxr-capture.d.ts",
+  "scripts": {
+    "clean": "rm -rf ./lib ./dist ./tsconfig.tsbuildinfo",
+    "build": "npm run build:tsc && npm run build:rollup",
+    "build:dev": "npm run build:tsc && npm run build:rollup:dev",
+    "build:tsc": "tsc --incremental",
+    "build:rollup": "rollup -c --environment NODE_ENV:production",
+    "build:rollup:dev": "rollup -c --environment NODE_ENV:development",
+    "prepublishOnly": "npm run build",
+    "test": "web-test-runner --playwright --browsers chromium",
+    "test:ci": "web-test-runner --static-logging --config web-test-ci.config.mjs",
+    "watch:tsc": "tsc -w --incremental",
+    "watch:rollup": "rollup -c -w --environment NODE_ENV:production",
+    "watch:rollup:dev": "rollup -c -w --environment NODE_ENV:development",
+    "probe:upstream": "node scripts/probe-upstream.mjs",
+    "format": "find src -name '*.ts' | grep -v .d.ts | xargs clang-format --verbose -i",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false ./node_modules/.bin/eslint \"src/**/*.ts\"",
+    "lint:fix": "npm run lint -- --fix"
+  },
+  "keywords": [
+    "ar",
+    "webxr",
+    "model-viewer",
+    "screenshot",
+    "capture",
+    "augmented reality"
+  ],
+  "peerDependencies": {
+    "@google/model-viewer": "^4.2.0",
+    "lit": "^3.2.1",
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "@google/model-viewer": "^4.2.0",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-replace": "^6.0.2",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/three": "^0.182.0",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "@web/test-runner": "^0.20.0",
+    "@web/test-runner-playwright": "^0.11.0",
+    "chai": "^5.2.0",
+    "eslint": "^9.22.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-mocha": "^10.5.0",
+    "eslint-plugin-wc": "^2.2.1",
+    "mocha": "^11.1.0",
+    "rollup": "^4.59.0",
+    "rollup-plugin-dts": "^6.1.1",
+    "three": "^0.182.0",
+    "typescript": "5.8.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,81 @@
+<!--
+ * @license
+ * Copyright 2026 k1pp0
+ * SPDX-License-Identifier: MIT
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>&lt;model-viewer&gt; WebXR Capture Example</title>
+  <meta charset="utf-8">
+  <meta name="description"
+    content="Example of @k1pp0/model-viewer-webxr-capture — WebXR screenshot capture plugin for &lt;model-viewer&gt;">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fafafa;
+      color: #212121;
+    }
+
+    h2 {
+      margin-top: 0;
+    }
+
+    .example-wrap {
+      max-width: 480px;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 60vh;
+      background: #e0e0e0;
+      border-radius: 12px;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <h2><code>@k1pp0/model-viewer-webxr-capture</code> — Example</h2>
+  <p>
+    Press the <code>AR</code> button, place the model on a flat surface, then tap the shutter
+    button to capture a composited image. The <code>ar-screenshot</code> event fires with a
+    <code>Blob</code> that can be shared via the Web Share API or downloaded directly.
+  </p>
+  <p>
+    Requires a WebXR-capable device (Android + Chrome). On iOS or unsupported devices the
+    experience gracefully falls back to Quick Look or Scene Viewer.
+  </p>
+
+  <div class="example-wrap">
+    <model-viewer id="mv" src="./Astronaut.glb" alt="A 3D model of an astronaut" ar
+      ar-modes="webxr scene-viewer quick-look" ar-scale="auto" ar-placement="floor" camera-controls touch-action="pan-y"
+      shadow-intensity="1">
+      <!-- Nested as a light-DOM child so the shutter and preview render inside
+           the WebXR dom-overlay tree during AR sessions. -->
+      <model-viewer-webxr-capture id="cap" action-text="Save / Share" filename-prefix="webxr-snap"
+        share-title="WebXR Snap"></model-viewer-webxr-capture>
+    </model-viewer>
+
+  </div>
+
+  <p style="font-size:12px;color:#757575;margin-top:16px">
+    Astronaut by Poly,
+    licensed under <a href="https://creativecommons.org/licenses/by/2.0/">CC-BY</a>.
+  </p>
+
+  <!-- Loads <model-viewer>: -->
+  <script type="module" src="https://unpkg.com/@google/model-viewer@4.2.0/dist/model-viewer.min.js">
+  </script>
+
+  <!-- Loads <model-viewer-webxr-capture>: -->
+  <script type="module" src="./model-viewer-webxr-capture-bundled.min.js">
+  </script>
+
+</body>
+
+</html>

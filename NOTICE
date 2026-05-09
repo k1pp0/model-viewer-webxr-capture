@@ -1,0 +1,29 @@
+model-viewer-webxr-capture
+Copyright 2026 k1pp0
+
+
+This package contains configuration files (build and lint tooling) adapted
+from Google's model-viewer project (https://github.com/google/model-viewer):
+
+  .clang-format              (verbatim)
+  .eslintrc.yaml             (adapted)
+  .eslintignore              (adapted)
+  package.json               (adapted)
+  rollup.config.js           (adapted; original Apache-2.0 header retained in file)
+  tsconfig.json              (adapted)
+  web-test-runner.config.mjs (adapted)
+
+  google/model-viewer
+  Copyright 2019 Google LLC
+  Licensed under the Apache License, Version 2.0
+  https://github.com/google/model-viewer/blob/master/LICENSE
+
+
+This package contains CSS styles (src/styles/capture-ui.css.ts)
+developed with reference to 8thwall's xrextras/mediarecorder component
+(https://github.com/8thwall/web/tree/master/xrextras).
+
+  xrextras
+  Copyright 2019 8th Wall, Inc.
+  Licensed under the MIT License
+  https://github.com/8thwall/web/blob/master/xrextras/LICENSE

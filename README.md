@@ -11,48 +11,36 @@ This package self-installs the WebXR capture stack at runtime — the host eleme
 - the public element API (`captureWebXRScreenshot()`, `canCaptureWebXRScreenshot`, `ar-screenshot` event) — exposed on the companion element itself, not on the host `<model-viewer>`,
 - a familiar AR camera UX (shutter button, fullscreen flash, snapshot preview with save/share).
 
+## Demo
+
+[Live demo on GitHub Pages →](https://k1pp0.github.io/model-viewer-webxr-capture/)
+
+*(Requires a WebXR-capable Android device with Chrome.)*
+
 ## Install
 
 The host `<model-viewer>` is the **standard upstream package from npm** — this plugin contains no fork of `@google/model-viewer`.
 
-### npm / bundler
+### CDN / static deployment (no bundler)
 
-This package is currently distributed as a tarball (`.tgz`), not via the public npm registry.
+The bundled variant inlines three.js and Lit — no import map or build step needed. Load both scripts as ES modules:
 
-First, build and pack the plugin locally:
-
-```bash
-npm run build
-npm pack
-# → k1pp0-model-viewer-webxr-capture-0.0.1.tgz
+```html
+<script type="module" src="https://unpkg.com/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/k1pp0/model-viewer-webxr-capture@v0.1.0/dist/model-viewer-webxr-capture-bundled.min.js"></script>
 ```
 
-Then install the generated tarball in your project:
+### npm / bundler
+
+This package is distributed via [GitHub Releases](https://github.com/k1pp0/model-viewer-webxr-capture/releases) as a tarball (`.tgz`), not via the public npm registry. Install it directly from the release URL:
 
 ```bash
-npm install @google/model-viewer /path/to/k1pp0-model-viewer-webxr-capture-0.0.1.tgz
+npm install @google/model-viewer https://github.com/k1pp0/model-viewer-webxr-capture/releases/download/v0.1.0/k1pp0-model-viewer-webxr-capture-0.1.0.tgz
 ```
 
 `<model-viewer>` is the unmodified upstream package; the plugin attaches itself purely via Symbol reflection on the host element + idempotent global patches at first `connectedCallback`. Pages that load the plugin module without placing `<model-viewer-webxr-capture>` see no behavior change.
 
 The plugin is verified against `@google/model-viewer ^4.2.0`.
-
-### Static deployment (no bundler)
-
-Use the bundled variant which inlines three.js. Build the project locally to generate the bundle files:
-
-```bash
-# from this repo's root
-./scripts/build-and-package.sh
-# → example/model-viewer-webxr-capture-bundled.min.js (+ .map)
-```
-
-Then, load `<model-viewer>` from a CDN and your local plugin bundle as a module script:
-
-```html
-<script type="module" src="https://unpkg.com/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
-<script type="module" src="./path/to/model-viewer-webxr-capture.min.js"></script>
-```
 
 ## Usage
 

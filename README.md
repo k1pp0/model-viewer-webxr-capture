@@ -27,7 +27,7 @@ The bundled variant inlines three.js and Lit — no import map or build step nee
 
 ```html
 <script type="module" src="https://unpkg.com/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
-<script type="module" src="https://cdn.jsdelivr.net/gh/k1pp0/model-viewer-webxr-capture@v0.1.0/dist/model-viewer-webxr-capture-bundled.min.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/k1pp0/model-viewer-webxr-capture@v0.1.1/dist/model-viewer-webxr-capture-bundled.min.js"></script>
 ```
 
 ### npm / bundler
@@ -35,7 +35,7 @@ The bundled variant inlines three.js and Lit — no import map or build step nee
 This package is distributed via [GitHub Releases](https://github.com/k1pp0/model-viewer-webxr-capture/releases) as a tarball (`.tgz`), not via the public npm registry. Install it directly from the release URL:
 
 ```bash
-npm install @google/model-viewer https://github.com/k1pp0/model-viewer-webxr-capture/releases/download/v0.1.0/k1pp0-model-viewer-webxr-capture-0.1.0.tgz
+npm install @google/model-viewer https://github.com/k1pp0/model-viewer-webxr-capture/releases/download/v0.1.1/k1pp0-model-viewer-webxr-capture-0.1.1.tgz
 ```
 
 `<model-viewer>` is the unmodified upstream package; the plugin attaches itself purely via Symbol reflection on the host element + idempotent global patches at first `connectedCallback`. Pages that load the plugin module without placing `<model-viewer-webxr-capture>` see no behavior change.

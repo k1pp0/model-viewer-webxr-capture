@@ -80,7 +80,6 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 .output
 
 # Gatsby files
@@ -149,11 +148,12 @@ example/model-viewer-webxr-capture-bundled.min.js.map
 # model-viewer ignore files (https://github.com/google/model-viewer)
 lib
 
-# local
-.claude/settings.json
-.claude/settings.local.json
-.devcontainer/devcontainer.json
-.devcontainer/Dockerfile
-CLAUDE.md
-README-JP.md
+# Rollup build output — .js and .d.ts are committed so that the jsDelivr CDN
+# gh-scheme (cdn.jsdelivr.net/gh/…@tag/dist/…) can serve the bundled file.
+# Source-map files stay ignored; they are still attached to GitHub Releases.
+dist/*.map
 
+# local
+.claude/
+.devcontainer/
+CLAUDE.md

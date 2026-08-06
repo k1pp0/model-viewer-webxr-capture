@@ -19,7 +19,7 @@
  *   node scripts/probe-upstream.mjs
  *
  * Optional env:
- *   MODEL_VIEWER_VERSION   pin the upstream version (default 4.2.0)
+ *   MODEL_VIEWER_VERSION   pin the upstream version (default 4.3.1)
  *   PROBE_PORT             local HTTP port for the probe (default 9876)
  */
 
@@ -33,7 +33,7 @@ import {chromium} from 'playwright';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const PORT = Number(process.env.PROBE_PORT ?? 9876);
-const UPSTREAM_VERSION = process.env.MODEL_VIEWER_VERSION ?? '4.2.0';
+const UPSTREAM_VERSION = process.env.MODEL_VIEWER_VERSION ?? '4.3.1';
 
 const PLUGIN_BUNDLED = readFileSync(join(
     ROOT,

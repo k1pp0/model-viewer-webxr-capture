@@ -3,14 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Camera, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, SRGBColorSpace, Texture, UnsignedByteType, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Camera, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, SRGBColorSpace, UnsignedByteType, WebGLRenderer, WebGLRenderTarget } from 'three';
 
 import { CAMERA_QUAD_FRAGMENT_SHADER, CAMERA_QUAD_VERTEX_SHADER } from './WebXRCaptureShaders.js';
-import {
-  bindXRCameraTexture,
-  ensureXRCameraTexture,
-  releaseXRCameraTexture,
-} from '../workarounds/chrome-xrwebgllayer.js';
 
 export interface WebXRCaptureOptions {
   mimeType?: string;
@@ -27,48 +22,37 @@ interface PendingCapture {
   options: WebXRCaptureOptions;
 }
 
-interface XRWebGLBindingLike {
-  getCameraImage(camera: unknown): WebGLTexture | null;
+// XRCamera is part of the Raw Camera Access API but absent from @types/webxr.
+// TODO: remove once @types/webxr@>0.5.24 adds XRCamera.
+export interface XRCamera {
+  readonly width: number;
+  readonly height: number;
 }
 
-interface XRWebGLBindingCtor {
-  new(session: XRSession,
-    gl: WebGLRenderingContext | WebGL2RenderingContext): XRWebGLBindingLike;
+// XRView.camera is part of the Raw Camera Access API but absent
+// from @types/webxr.
+// TODO: remove once @types/webxr@>0.5.24 adds XRView.camera.
+export interface XRViewWithCamera extends XRView {
+  readonly camera?: XRCamera;
 }
-
-declare const XRWebGLBinding: XRWebGLBindingCtor | undefined;
 
 /**
  * Implements WebXR AR screenshot capture by composing the raw camera image
  * with the rendered 3D scene into a single Blob.
  *
- *  - Owns its own XRWebGLBinding (created at session start).
- *  - Delegates camera-texture injection to helpers in
- *    `workarounds/chrome-xrwebgllayer.ts`, bypassing the ExternalTexture /
- *    WebXRManager.getCameraTexture path that crashes Chrome 147+ (#33404).
+ *  - Reads the raw camera frame from three.js via
+ *    `renderer.xr.getCameraTexture(view.camera)`; the WebXRManager owns the
+ *    `XRWebGLBinding` and refreshes the texture once per XR frame when the
+ *    session has `camera-access` enabled.
  *  - Adds the background quad as a scene member with renderOrder=-999
  *    and toggles renderer.xr.enabled = false during the offscreen render.
  */
 export class WebXRCapture {
-  private xrGlBinding: XRWebGLBindingLike | null = null;
-  private cameraTexture: Texture | null = null;
   private bgQuad: Mesh | null = null;
   private renderTarget: WebGLRenderTarget | null = null;
   private pendingCapture: PendingCapture | null = null;
 
-  constructor(
-    private readonly threeRenderer: WebGLRenderer, session: XRSession) {
-    if (typeof XRWebGLBinding === 'undefined') {
-      console.warn('[WebXRCapture] XRWebGLBinding is not available.');
-      return;
-    }
-    try {
-      const gl = threeRenderer.getContext();
-      this.xrGlBinding = new XRWebGLBinding(session, gl);
-    } catch (e) {
-      console.warn('[WebXRCapture] Failed to create XRWebGLBinding:', e);
-      return;
-    }
+  constructor(private readonly threeRenderer: WebGLRenderer) {
     this.bgQuad = this.createBackgroundQuad();
   }
 
@@ -77,9 +61,6 @@ export class WebXRCapture {
    * pending.
    */
   requestCapture(options: WebXRCaptureOptions = {}): Promise<Blob | null> {
-    if (this.xrGlBinding == null) {
-      return Promise.resolve(null);
-    }
     if (this.pendingCapture != null) {
       return Promise.reject(new Error('AR capture is already in progress'));
     }
@@ -109,13 +90,6 @@ export class WebXRCapture {
 
   /** Release GPU resources. Safe to call after dispose(). */
   dispose(): void {
-    if (this.cameraTexture != null) {
-      // Detach the WebXR-owned WebGLTexture so three.js does not delete it.
-      releaseXRCameraTexture(this.threeRenderer, this.cameraTexture);
-      this.cameraTexture.dispose();
-      this.cameraTexture = null;
-    }
-
     if (this.renderTarget != null) {
       this.renderTarget.dispose();
       this.renderTarget = null;
@@ -126,8 +100,6 @@ export class WebXRCapture {
       (this.bgQuad.material as ShaderMaterial).dispose();
       this.bgQuad = null;
     }
-
-    this.xrGlBinding = null;
 
     if (this.pendingCapture != null) {
       this.pendingCapture.resolve(null);
@@ -154,24 +126,25 @@ export class WebXRCapture {
     pending: PendingCapture): void {
     const renderer = this.threeRenderer;
 
-    const xrCamera = (view as unknown as { camera?: object }).camera;
-    if (xrCamera == null || this.xrGlBinding == null) {
+    const rawCamera = (view as XRViewWithCamera).camera;
+    if (rawCamera == null) {
       console.warn(
-        '[WebXRCapture] view.camera or XRWebGLBinding unavailable; ' +
-        'session may not have camera-access enabled.');
+        '[WebXRCapture] view.camera unavailable; session may not have ' +
+        'camera-access enabled.');
       pending.resolve(null);
       return;
     }
 
-    let glCameraTexture: WebGLTexture | null;
-    try {
-      glCameraTexture = this.xrGlBinding.getCameraImage(xrCamera);
-    } catch (e) {
-      console.error('[WebXRCapture] getCameraImage threw:', e);
-      pending.resolve(null);
-      return;
-    }
-    if (glCameraTexture == null) {
+    // getCameraTexture() expects WebXRCamera (PerspectiveCamera) but the actual
+    // key is XRCamera.
+    // TODO: remove once @types/three@>0.182.0 correctly types
+    // getCameraTexture().
+    type GetCameraTextureParam =
+      Parameters<typeof renderer.xr.getCameraTexture>[0];
+    const cameraTexture = renderer.xr.getCameraTexture(
+      rawCamera as unknown as GetCameraTextureParam);
+    if (cameraTexture == null) {
+      console.warn('[WebXRCapture] No camera texture available for capture.');
       pending.resolve(null);
       return;
     }
@@ -185,21 +158,9 @@ export class WebXRCapture {
     this.ensureRenderTarget(rtWidth, rtHeight);
     const renderTarget = this.renderTarget!;
 
-    const xrCameraSize = xrCamera as unknown as {
-      width?: number;
-      height?: number;
-    };
-    this.cameraTexture = ensureXRCameraTexture(
-      this.cameraTexture,
-      xrCameraSize,
-      canvas.width,
-      canvas.height,
-    );
-    bindXRCameraTexture(renderer, this.cameraTexture, glCameraTexture);
-
     const bgQuad = this.bgQuad!;
     (bgQuad.material as ShaderMaterial).uniforms.cameraTex.value =
-      this.cameraTexture;
+      cameraTexture;
 
     modelScene.add(bgQuad);
     const prevTarget = renderer.getRenderTarget();
@@ -238,7 +199,7 @@ export class WebXRCapture {
       type: UnsignedByteType,
       depthBuffer: true,
       stencilBuffer: false,
-      // SRGBColorSpace pairs with the pow(2.2) decode in the camera quad
+      // SRGBColorSpace pairs with the sRGB → linear decode in the camera quad
       // shader so the 3D model is output with correct brightness.
       colorSpace: SRGBColorSpace,
     });

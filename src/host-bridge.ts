@@ -11,8 +11,7 @@
  *     minification, so the description-based lookup is stable across builds.
  *  2. Lazily monkey-patching `navigator.xr.requestSession` once globally to
  *     append `'camera-access'` to `optionalFeatures` of `'immersive-ar'`
- *     requests, and deleting `XRWebGLBinding.prototype.createProjectionLayer`
- *     to dodge a Chrome 147+ regression (three.js #33404).
+ *     requests.
  *  3. Wrapping the singleton `ARRenderer.onWebXRFrame` once globally with a
  *     post-original dispatcher that calls subscribed plugin instances back
  *     with `(view, scene, viewCamera)` matching the host that owns the AR
@@ -24,11 +23,6 @@
  */
 
 import type { ArrayCamera, Camera, Scene, WebGLRenderer } from 'three';
-
-import {
-  applyProjectionLayerWorkaround,
-  applyUpdateRenderStateWorkaround,
-} from './workarounds/chrome-xrwebgllayer.js';
 
 interface FrameSubscriber {
   host: HTMLElement;
@@ -85,7 +79,7 @@ function readSymbolProperty<T = unknown>(
     throw new Error(
       `[model-viewer-webxr-capture] Could not find ${name} on the host ` +
       '<model-viewer>. This usually means @google/model-viewer was ' +
-      'upgraded to an incompatible major version. Pin to ^4.2.0 or file ' +
+      'upgraded to an incompatible major version. Pin to ^4.3.1 or file ' +
       'an issue at https://github.com/k1pp0/model-viewer-webxr-capture/issues.');
   }
   return (host as unknown as Record<symbol, T>)[sym];
@@ -146,15 +140,12 @@ interface XRWithRequestSession extends XRSystem {
 }
 
 /**
- * Idempotently installs:
+ * Idempotently installs the `navigator.xr.requestSession` wrapper that appends
+ * `'camera-access'` to the `optionalFeatures` of every `'immersive-ar'`
+ * session request.
  *
- *  - `navigator.xr.requestSession` wrapper that appends `'camera-access'` to
- *    the `optionalFeatures` of every `'immersive-ar'` session request.
- *  - `applyProjectionLayerWorkaround()` and `applyUpdateRenderStateWorkaround()`
- *    for Chrome 147/148 regressions (see `workarounds/chrome-xrwebgllayer.ts`).
- *
- * Both are global side effects. They are gated on the first plugin connect,
- * so pages that load the bundle but do not use `<model-viewer-webxr-capture>`
+ * This is a global side effect. It is gated on the first plugin connect, so
+ * pages that load the bundle but do not use `<model-viewer-webxr-capture>`
  * see no behavior change.
  */
 export function ensureGlobalPatches(): void {
@@ -184,9 +175,6 @@ export function ensureGlobalPatches(): void {
     };
     xr[NAVIGATOR_XR_MARKER] = true;
   }
-
-  applyProjectionLayerWorkaround();
-  applyUpdateRenderStateWorkaround();
 }
 
 /**

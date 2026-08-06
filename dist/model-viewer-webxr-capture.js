@@ -347,7 +347,7 @@ function readSymbolProperty(host, description, name) {
     if (sym == null) {
         throw new Error(`[model-viewer-webxr-capture] Could not find ${name} on the host ` +
             '<model-viewer>. This usually means @google/model-viewer was ' +
-            'upgraded to an incompatible major version. Pin to ^4.2.0 or file ' +
+            'upgraded to an incompatible major version. Pin to ^4.3.1 or file ' +
             'an issue at https://github.com/k1pp0/model-viewer-webxr-capture/issues.');
     }
     return host[sym];

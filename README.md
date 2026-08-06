@@ -26,7 +26,7 @@ The host `<model-viewer>` is the **standard upstream package from npm** — this
 The bundled variant inlines three.js and Lit — no import map or build step needed. Load both scripts as ES modules:
 
 ```html
-<script type="module" src="https://unpkg.com/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
+<script type="module" src="https://unpkg.com/@google/model-viewer@4.3.1/dist/model-viewer.min.js"></script>
 <script type="module" src="https://cdn.jsdelivr.net/gh/k1pp0/model-viewer-webxr-capture@v0.1.1/dist/model-viewer-webxr-capture-bundled.min.js"></script>
 ```
 
@@ -40,7 +40,7 @@ npm install @google/model-viewer https://github.com/k1pp0/model-viewer-webxr-cap
 
 `<model-viewer>` is the unmodified upstream package; the plugin attaches itself purely via Symbol reflection on the host element + idempotent global patches at first `connectedCallback`. Pages that load the plugin module without placing `<model-viewer-webxr-capture>` see no behavior change.
 
-The plugin is verified against `@google/model-viewer ^4.2.0`.
+The plugin is verified against `@google/model-viewer` 4.3.1 (three.js 0.183.x). It also runs against 4.2.0 / three.js 0.182.x.
 
 ## Usage
 

@@ -2,7 +2,7 @@
 # Build the static drop-in deployment bundle.
 #
 # `<model-viewer>` is loaded from CDN in index.html
-# (@google/model-viewer@4.2.0 via unpkg) — no local copy is needed.
+# (@google/model-viewer@4.3.1 via unpkg) — no local copy is needed.
 # The plugin `@k1pp0/model-viewer-webxr-capture` is the only file that carries
 # forked behavior — it self-installs at runtime, so the host element stays
 # vanilla.

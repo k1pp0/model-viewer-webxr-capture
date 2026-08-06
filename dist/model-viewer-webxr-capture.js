@@ -1,143 +1,40 @@
 import { html, css, LitElement } from 'lit';
 import { property, query, customElement } from 'lit/decorators.js';
-import { Texture, RGBAFormat, UnsignedByteType, LinearFilter, ShaderMaterial, Mesh, PlaneGeometry, WebGLRenderTarget, SRGBColorSpace } from 'three';
+import { ShaderMaterial, Mesh, PlaneGeometry, WebGLRenderTarget, SRGBColorSpace, UnsignedByteType, RGBAFormat, LinearFilter } from 'three';
 
 /* @license
  * Copyright 2026 k1pp0
  * SPDX-License-Identifier: MIT
  */
-// Background quad rendered behind the 3D scene during capture.
-// gl_Position.z = 0.999 puts it at the far plane in NDC so the model is
-// drawn on top.
+// Background quad rendered behind the 3D scene during capture. The quad is
+// drawn with renderOrder = -999 and depthTest/depthWrite disabled, so the
+// model always composites on top of it.
 //
-// The fragment decodes the sRGB-encoded camera texture to linear (pow 2.2)
-// because the capture render target is tagged SRGBColorSpace — three.js
-// re-encodes linear → sRGB on write, so the camera quad must feed it linear
-// values. Without this decode the camera image stays sRGB-correct but the
-// 3D model output is darkened (verified empirically on device).
+// The fragment decodes the sRGB-encoded camera texture to linear because the
+// capture render target is tagged SRGBColorSpace — three.js re-encodes
+// linear → sRGB on write, so the camera quad must feed it linear values.
+// Without this decode the camera image stays sRGB-correct but the 3D model
+// output is darkened.
 const CAMERA_QUAD_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
   void main() {
     vUv = uv;
-    gl_Position = vec4(position.xy, 0.999, 1.0);
+    gl_Position = vec4(position, 1.0);
   }
 `;
 const CAMERA_QUAD_FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D cameraTex;
   varying vec2 vUv;
+
+  vec3 sRGBToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+  }
+
   void main() {
     vec4 color = texture2D(cameraTex, vUv);
-    color.rgb = pow(color.rgb, vec3(2.2));
-    gl_FragColor = color;
+    gl_FragColor = vec4(sRGBToLinear(color.rgb), color.a);
   }
 `;
-
-/* @license
- * Copyright 2026 k1pp0
- * SPDX-License-Identifier: MIT
- */
-/**
- * Chrome WebXR workarounds for three.js #33404.
- * https://github.com/mrdoob/three.js/issues/33404
- *
- * applyProjectionLayerWorkaround (Chrome 147+): deletes
- *   XRWebGLBinding.prototype.createProjectionLayer so three.js falls back to
- *   the legacy XRWebGLLayer path.
- *
- * applyUpdateRenderStateWorkaround (Chrome 148): wraps
- *   XRSession.prototype.updateRenderState to re-inject the last known
- *   baseLayer, preventing Chrome 148 from losing the reference when
- *   updateRenderState is called without a baseLayer argument.
- *
- * ensureXRCameraTexture / bindXRCameraTexture / releaseXRCameraTexture:
- *   manually wraps the raw WebGLTexture from XRWebGLBinding.getCameraImage
- *   in a plain THREE.Texture and injects it via renderer.properties,
- *   bypassing the ExternalTexture / WebXRManager.getCameraTexture path
- *   that crashes on Chrome 147+.
- *
- * Chrome 149+ (≥149.0.7819.0) fixes the underlying Chrome crash;
- * these workarounds remain as safety guards and are harmless on newer builds.
- *
- * To remove individual workarounds:
- *   applyProjectionLayerWorkaround — remove import + call in host-bridge.ts
- *     when Chrome 147 is no longer a concern.
- *   applyUpdateRenderStateWorkaround — remove import + call in host-bridge.ts
- *     when Chrome 148 is no longer a concern.
- *   Texture helpers — remove imports from WebXRCapture.ts and restore the
- *     original getCameraTexture / ExternalTexture logic.
- *   If all workarounds are removed, delete this file entirely.
- */
-const UPDATE_RENDER_STATE_MARKER = '__captureUpdateRenderStateWrapped';
-function applyProjectionLayerWorkaround() {
-    const win = window;
-    try {
-        if (win.XRWebGLBinding != null &&
-            win.XRWebGLBinding.prototype.createProjectionLayer != null) {
-            delete win.XRWebGLBinding.prototype.createProjectionLayer;
-        }
-    }
-    catch (e) {
-        console.warn('[model-viewer-webxr-capture] Could not delete projection-layer ' +
-            'prototype; AR capture may crash on Chrome 147+.', e);
-    }
-}
-function ensureXRCameraTexture(current, xrCamera, canvasWidth, canvasHeight) {
-    var _a, _b;
-    if (current != null) {
-        return current;
-    }
-    const tex = new Texture();
-    tex.image = {
-        width: (_a = xrCamera.width) !== null && _a !== void 0 ? _a : canvasWidth,
-        height: (_b = xrCamera.height) !== null && _b !== void 0 ? _b : canvasHeight,
-    };
-    tex.flipY = false;
-    tex.format = RGBAFormat;
-    tex.type = UnsignedByteType;
-    tex.minFilter = LinearFilter;
-    tex.magFilter = LinearFilter;
-    tex.generateMipmaps = false;
-    return tex;
-}
-function bindXRCameraTexture(renderer, tex, glTexture) {
-    const props = renderer.properties.get(tex);
-    props.__webglTexture = glTexture;
-    props.__webglInit = true;
-}
-function releaseXRCameraTexture(renderer, tex) {
-    const props = renderer.properties.get(tex);
-    if (props != null) {
-        props.__webglTexture = undefined;
-    }
-}
-/**
- * Chrome 148 workaround — https://github.com/mrdoob/three.js/issues/33404
- *
- * Chrome 148 clears the XRWebGLLayer baseLayer reference when
- * XRSession.updateRenderState is called without a baseLayer argument (e.g.
- * to update depthNear/depthFar only). This wraps the prototype method to
- * re-inject the last known baseLayer on every call, preventing the crash.
- *
- * Chrome 149+ (≥149.0.7819.0) fixes this on the Chrome side; this wrapper
- * is harmless on newer builds.
- */
-function applyUpdateRenderStateWorkaround() {
-    const proto = XRSession.prototype;
-    if (proto.updateRenderState[UPDATE_RENDER_STATE_MARKER] === true) {
-        return;
-    }
-    const original = proto.updateRenderState;
-    const baseLayerBySession = new WeakMap();
-    const wrapped = function (options) {
-        if ((options === null || options === void 0 ? void 0 : options.baseLayer) != null) {
-            baseLayerBySession.set(this, options.baseLayer);
-        }
-        const last = baseLayerBySession.get(this);
-        original.call(this, last != null ? Object.assign({ baseLayer: last }, options) : options);
-    };
-    wrapped[UPDATE_RENDER_STATE_MARKER] = true;
-    proto.updateRenderState = wrapped;
-}
 
 /* @license
  * Copyright 2026 k1pp0
@@ -147,33 +44,19 @@ function applyUpdateRenderStateWorkaround() {
  * Implements WebXR AR screenshot capture by composing the raw camera image
  * with the rendered 3D scene into a single Blob.
  *
- *  - Owns its own XRWebGLBinding (created at session start).
- *  - Delegates camera-texture injection to helpers in
- *    `workarounds/chrome-xrwebgllayer.ts`, bypassing the ExternalTexture /
- *    WebXRManager.getCameraTexture path that crashes Chrome 147+ (#33404).
+ *  - Reads the raw camera frame from three.js via
+ *    `renderer.xr.getCameraTexture(view.camera)`; the WebXRManager owns the
+ *    `XRWebGLBinding` and refreshes the texture once per XR frame when the
+ *    session has `camera-access` enabled.
  *  - Adds the background quad as a scene member with renderOrder=-999
  *    and toggles renderer.xr.enabled = false during the offscreen render.
  */
 class WebXRCapture {
-    constructor(threeRenderer, session) {
+    constructor(threeRenderer) {
         this.threeRenderer = threeRenderer;
-        this.xrGlBinding = null;
-        this.cameraTexture = null;
         this.bgQuad = null;
         this.renderTarget = null;
         this.pendingCapture = null;
-        if (typeof XRWebGLBinding === 'undefined') {
-            console.warn('[WebXRCapture] XRWebGLBinding is not available.');
-            return;
-        }
-        try {
-            const gl = threeRenderer.getContext();
-            this.xrGlBinding = new XRWebGLBinding(session, gl);
-        }
-        catch (e) {
-            console.warn('[WebXRCapture] Failed to create XRWebGLBinding:', e);
-            return;
-        }
         this.bgQuad = this.createBackgroundQuad();
     }
     /**
@@ -181,9 +64,6 @@ class WebXRCapture {
      * pending.
      */
     requestCapture(options = {}) {
-        if (this.xrGlBinding == null) {
-            return Promise.resolve(null);
-        }
         if (this.pendingCapture != null) {
             return Promise.reject(new Error('AR capture is already in progress'));
         }
@@ -211,12 +91,6 @@ class WebXRCapture {
     }
     /** Release GPU resources. Safe to call after dispose(). */
     dispose() {
-        if (this.cameraTexture != null) {
-            // Detach the WebXR-owned WebGLTexture so three.js does not delete it.
-            releaseXRCameraTexture(this.threeRenderer, this.cameraTexture);
-            this.cameraTexture.dispose();
-            this.cameraTexture = null;
-        }
         if (this.renderTarget != null) {
             this.renderTarget.dispose();
             this.renderTarget = null;
@@ -226,7 +100,6 @@ class WebXRCapture {
             this.bgQuad.material.dispose();
             this.bgQuad = null;
         }
-        this.xrGlBinding = null;
         if (this.pendingCapture != null) {
             this.pendingCapture.resolve(null);
             this.pendingCapture = null;
@@ -248,23 +121,16 @@ class WebXRCapture {
     executeCapture(view, modelScene, viewCamera, pending) {
         var _a, _b;
         const renderer = this.threeRenderer;
-        const xrCamera = view.camera;
-        if (xrCamera == null || this.xrGlBinding == null) {
-            console.warn('[WebXRCapture] view.camera or XRWebGLBinding unavailable; ' +
-                'session may not have camera-access enabled.');
+        const rawCamera = view.camera;
+        if (rawCamera == null) {
+            console.warn('[WebXRCapture] view.camera unavailable; session may not have ' +
+                'camera-access enabled.');
             pending.resolve(null);
             return;
         }
-        let glCameraTexture;
-        try {
-            glCameraTexture = this.xrGlBinding.getCameraImage(xrCamera);
-        }
-        catch (e) {
-            console.error('[WebXRCapture] getCameraImage threw:', e);
-            pending.resolve(null);
-            return;
-        }
-        if (glCameraTexture == null) {
+        const cameraTexture = renderer.xr.getCameraTexture(rawCamera);
+        if (cameraTexture == null) {
+            console.warn('[WebXRCapture] No camera texture available for capture.');
             pending.resolve(null);
             return;
         }
@@ -273,12 +139,9 @@ class WebXRCapture {
         const rtHeight = Math.max(1, Math.floor((_b = pending.options.height) !== null && _b !== void 0 ? _b : canvas.height));
         this.ensureRenderTarget(rtWidth, rtHeight);
         const renderTarget = this.renderTarget;
-        const xrCameraSize = xrCamera;
-        this.cameraTexture = ensureXRCameraTexture(this.cameraTexture, xrCameraSize, canvas.width, canvas.height);
-        bindXRCameraTexture(renderer, this.cameraTexture, glCameraTexture);
         const bgQuad = this.bgQuad;
         bgQuad.material.uniforms.cameraTex.value =
-            this.cameraTexture;
+            cameraTexture;
         modelScene.add(bgQuad);
         const prevTarget = renderer.getRenderTarget();
         const wasXrEnabled = renderer.xr.enabled;
@@ -313,7 +176,7 @@ class WebXRCapture {
             type: UnsignedByteType,
             depthBuffer: true,
             stencilBuffer: false,
-            // SRGBColorSpace pairs with the pow(2.2) decode in the camera quad
+            // SRGBColorSpace pairs with the sRGB → linear decode in the camera quad
             // shader so the 3D model is output with correct brightness.
             colorSpace: SRGBColorSpace,
         });
@@ -354,10 +217,9 @@ class WebXRCapture {
  *  - Drives `WebXRCapture.processFrame` from the host-bridge frame dispatcher.
  *  - Disposes `WebXRCapture` on session end.
  *
- * The global side effects that used to live in `beforeRequestSession`
- * (`'camera-access'` injection, the Chrome 147+ projection-layer workaround)
- * are now installed once at plugin connect time by `host-bridge.ts` —
- * see `ensureGlobalPatches`.
+ * The global `'camera-access'` injection that used to live in
+ * `beforeRequestSession` is now installed once at plugin connect time by
+ * `host-bridge.ts` — see `ensureGlobalPatches`.
  */
 class WebXRCaptureProvider {
     constructor() {
@@ -377,7 +239,7 @@ class WebXRCaptureProvider {
         this._supported = sessionAny.enabledFeatures != null &&
             sessionAny.enabledFeatures.indexOf('camera-access') !== -1;
         if (this._supported) {
-            this.capture = new WebXRCapture(threeRenderer, session);
+            this.capture = new WebXRCapture(threeRenderer);
         }
     }
     onFrame(view, scene, viewCamera) {
@@ -518,15 +380,12 @@ function getXRSession(host) {
     return xr.getSession();
 }
 /**
- * Idempotently installs:
+ * Idempotently installs the `navigator.xr.requestSession` wrapper that appends
+ * `'camera-access'` to the `optionalFeatures` of every `'immersive-ar'`
+ * session request.
  *
- *  - `navigator.xr.requestSession` wrapper that appends `'camera-access'` to
- *    the `optionalFeatures` of every `'immersive-ar'` session request.
- *  - `applyProjectionLayerWorkaround()` and `applyUpdateRenderStateWorkaround()`
- *    for Chrome 147/148 regressions (see `workarounds/chrome-xrwebgllayer.ts`).
- *
- * Both are global side effects. They are gated on the first plugin connect,
- * so pages that load the bundle but do not use `<model-viewer-webxr-capture>`
+ * This is a global side effect. It is gated on the first plugin connect, so
+ * pages that load the bundle but do not use `<model-viewer-webxr-capture>`
  * see no behavior change.
  */
 function ensureGlobalPatches() {
@@ -553,8 +412,6 @@ function ensureGlobalPatches() {
         };
         xr[NAVIGATOR_XR_MARKER] = true;
     }
-    applyProjectionLayerWorkaround();
-    applyUpdateRenderStateWorkaround();
 }
 /**
  * Idempotently wraps `arRenderer.onWebXRFrame` so that, after the original

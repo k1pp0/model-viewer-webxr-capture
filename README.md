@@ -6,7 +6,7 @@ WebXR AR screenshot capture plugin for Google's [`<model-viewer>`](https://githu
 This package self-installs the WebXR capture stack at runtime — the host element needs no patches, no fork, and no extra registration call:
 
 - a `WebGLRenderer`-driven `WebXRCapture` that composes the WebXR camera passthrough with the rendered 3D scene into a `Blob`,
-- a global `navigator.xr.requestSession` wrapper that injects the WebXR `'camera-access'` optional feature, plus the Chrome 147+ projection-layer workaround,
+- a global `navigator.xr.requestSession` wrapper that injects the WebXR `'camera-access'` optional feature,
 - a one-time wrapper around the singleton `ARRenderer.onWebXRFrame` for the per-frame capture pipeline,
 - the public element API (`captureWebXRScreenshot()`, `canCaptureWebXRScreenshot`, `ar-screenshot` event) — exposed on the companion element itself, not on the host `<model-viewer>`,
 - a familiar AR camera UX (shutter button, fullscreen flash, snapshot preview with save/share).
@@ -15,7 +15,7 @@ This package self-installs the WebXR capture stack at runtime — the host eleme
 
 [Live demo on GitHub Pages →](https://k1pp0.github.io/model-viewer-webxr-capture/)
 
-*(Requires a WebXR-capable Android device with Chrome.)*
+*(Requires a WebXR-capable Android device with Chrome 149+ — the raw camera image is read through three.js' native `renderer.xr.getCameraTexture()` path, which crashes on Chrome 147/148.)*
 
 ## Install
 
@@ -57,7 +57,7 @@ Nest the companion element inside `<model-viewer>` as a light-DOM child. This is
 
 The companion element resolves its host via the closest ancestor `<model-viewer>`. If you must place it outside, use the `for` attribute to target a `<model-viewer>` by id — but note that AR-time visibility is only guaranteed when nested.
 
-On `connectedCallback` the element installs (idempotently and lazily) the global `navigator.xr.requestSession` wrapper, the Chrome 147+ workaround, and a wrapper around the singleton `ARRenderer.onWebXRFrame`. It then listens to the host's `ar-status` event to drive `WebXRCapture` lifecycle and subscribes to per-frame dispatch from the wrapped `onWebXRFrame`.
+On `connectedCallback` the element installs (idempotently and lazily) the global `navigator.xr.requestSession` wrapper and a wrapper around the singleton `ARRenderer.onWebXRFrame`. It then listens to the host's `ar-status` event to drive `WebXRCapture` lifecycle and subscribes to per-frame dispatch from the wrapped `onWebXRFrame`.
 
 If the plugin is attached while an AR session is already running, the session continues without `'camera-access'` and a console warning is emitted — capture becomes available on the next AR session.
 

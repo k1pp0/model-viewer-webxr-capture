@@ -16,10 +16,9 @@ import { WebXRCapture, WebXRCaptureOptions } from './three-components/WebXRCaptu
  *  - Drives `WebXRCapture.processFrame` from the host-bridge frame dispatcher.
  *  - Disposes `WebXRCapture` on session end.
  *
- * The global side effects that used to live in `beforeRequestSession`
- * (`'camera-access'` injection, the Chrome 147+ projection-layer workaround)
- * are now installed once at plugin connect time by `host-bridge.ts` —
- * see `ensureGlobalPatches`.
+ * The global `'camera-access'` injection that used to live in
+ * `beforeRequestSession` is now installed once at plugin connect time by
+ * `host-bridge.ts` — see `ensureGlobalPatches`.
  */
 export class WebXRCaptureProvider {
   private capture: WebXRCapture | null = null;
@@ -41,7 +40,7 @@ export class WebXRCaptureProvider {
       sessionAny.enabledFeatures.indexOf('camera-access') !== -1;
 
     if (this._supported) {
-      this.capture = new WebXRCapture(threeRenderer, session);
+      this.capture = new WebXRCapture(threeRenderer);
     }
   }
 

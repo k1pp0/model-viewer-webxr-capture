@@ -7,11 +7,9 @@
 // drawn with renderOrder = -999 and depthTest/depthWrite disabled, so the
 // model always composites on top of it.
 //
-// The fragment decodes the sRGB-encoded camera texture to linear because the
-// capture render target is tagged SRGBColorSpace — three.js re-encodes
-// linear → sRGB on write, so the camera quad must feed it linear values.
-// Without this decode the camera image stays sRGB-correct but the 3D model
-// output is darkened.
+// The camera texture is already sRGB-encoded and the capture target stores
+// sRGB values as-is (no hardware encode), so the fragment passes texels
+// through untouched.
 export const CAMERA_QUAD_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -24,12 +22,7 @@ export const CAMERA_QUAD_FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D cameraTex;
   varying vec2 vUv;
 
-  vec3 sRGBToLinear(vec3 c) {
-    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-  }
-
   void main() {
-    vec4 color = texture2D(cameraTex, vUv);
-    gl_FragColor = vec4(sRGBToLinear(color.rgb), color.a);
+    gl_FragColor = texture2D(cameraTex, vUv);
   }
 `;

@@ -1,6 +1,6 @@
 import { html, css, LitElement } from 'lit';
 import { property, query, customElement } from 'lit/decorators.js';
-import { ShaderMaterial, Mesh, PlaneGeometry, WebGLRenderTarget, SRGBColorSpace, UnsignedByteType, RGBAFormat, LinearFilter } from 'three';
+import { ShaderMaterial, Mesh, PlaneGeometry, WebGLRenderTarget, SRGBColorSpace } from 'three';
 
 /* @license
  * Copyright 2026 k1pp0
@@ -10,11 +10,9 @@ import { ShaderMaterial, Mesh, PlaneGeometry, WebGLRenderTarget, SRGBColorSpace,
 // drawn with renderOrder = -999 and depthTest/depthWrite disabled, so the
 // model always composites on top of it.
 //
-// The fragment decodes the sRGB-encoded camera texture to linear because the
-// capture render target is tagged SRGBColorSpace — three.js re-encodes
-// linear → sRGB on write, so the camera quad must feed it linear values.
-// Without this decode the camera image stays sRGB-correct but the 3D model
-// output is darkened.
+// The camera texture is already sRGB-encoded and the capture target stores
+// sRGB values as-is (no hardware encode), so the fragment passes texels
+// through untouched.
 const CAMERA_QUAD_VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -26,13 +24,8 @@ const CAMERA_QUAD_FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D cameraTex;
   varying vec2 vUv;
 
-  vec3 sRGBToLinear(vec3 c) {
-    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-  }
-
   void main() {
-    vec4 color = texture2D(cameraTex, vUv);
-    gl_FragColor = vec4(sRGBToLinear(color.rgb), color.a);
+    gl_FragColor = texture2D(cameraTex, vUv);
   }
 `;
 
@@ -148,6 +141,9 @@ class WebXRCapture {
         try {
             renderer.xr.enabled = false;
             renderer.setRenderTarget(renderTarget);
+            // Force GL write masks on, mirroring upstream Shadow.render().
+            renderer.state.buffers.color.setMask(true);
+            renderer.state.buffers.depth.setMask(true);
             renderer.render(modelScene, viewCamera);
         }
         finally {
@@ -161,25 +157,20 @@ class WebXRCapture {
             .then((blob) => pending.resolve(blob), (err) => pending.reject(err));
     }
     ensureRenderTarget(width, height) {
-        if (this.renderTarget != null && this.renderTarget.width === width &&
-            this.renderTarget.height === height) {
-            return;
-        }
         if (this.renderTarget != null) {
             this.renderTarget.setSize(width, height);
             return;
         }
         this.renderTarget = new WebGLRenderTarget(width, height, {
-            minFilter: LinearFilter,
-            magFilter: LinearFilter,
-            format: RGBAFormat,
-            type: UnsignedByteType,
-            depthBuffer: true,
-            stencilBuffer: false,
-            // SRGBColorSpace pairs with the sRGB → linear decode in the camera quad
-            // shader so the 3D model is output with correct brightness.
             colorSpace: SRGBColorSpace,
         });
+        // Mimic the live XR framebuffer (three.js #23278): renderer.toneMapping
+        // and shader-side sRGB encoding apply, while RGBA8 storage avoids a
+        // second hardware encode and keeps blending in sRGB space — otherwise
+        // the semi-transparent AR floor shadow captures at half strength.
+        this.renderTarget
+            .isXRRenderTarget = true;
+        this.renderTarget.texture.internalFormat = 'RGBA8';
     }
     async pixelsToBlob(pixels, width, height, options) {
         const canvas = document.createElement('canvas');

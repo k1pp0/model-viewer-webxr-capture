@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Camera, LinearFilter, Mesh, PlaneGeometry, RGBAFormat, Scene, ShaderMaterial, SRGBColorSpace, UnsignedByteType, WebGLRenderer, WebGLRenderTarget } from 'three';
+import { Camera, Mesh, PlaneGeometry, Scene, ShaderMaterial, SRGBColorSpace, WebGLRenderer, WebGLRenderTarget } from 'three';
 
 import { CAMERA_QUAD_FRAGMENT_SHADER, CAMERA_QUAD_VERTEX_SHADER } from './WebXRCaptureShaders.js';
 
@@ -168,6 +168,9 @@ export class WebXRCapture {
     try {
       renderer.xr.enabled = false;
       renderer.setRenderTarget(renderTarget);
+      // Force GL write masks on, mirroring upstream Shadow.render().
+      renderer.state.buffers.color.setMask(true);
+      renderer.state.buffers.depth.setMask(true);
       renderer.render(modelScene, viewCamera);
     } finally {
       renderer.xr.enabled = wasXrEnabled;
@@ -184,25 +187,20 @@ export class WebXRCapture {
   }
 
   private ensureRenderTarget(width: number, height: number): void {
-    if (this.renderTarget != null && this.renderTarget.width === width &&
-      this.renderTarget.height === height) {
-      return;
-    }
     if (this.renderTarget != null) {
       this.renderTarget.setSize(width, height);
       return;
     }
     this.renderTarget = new WebGLRenderTarget(width, height, {
-      minFilter: LinearFilter,
-      magFilter: LinearFilter,
-      format: RGBAFormat,
-      type: UnsignedByteType,
-      depthBuffer: true,
-      stencilBuffer: false,
-      // SRGBColorSpace pairs with the sRGB → linear decode in the camera quad
-      // shader so the 3D model is output with correct brightness.
       colorSpace: SRGBColorSpace,
     });
+    // Mimic the live XR framebuffer (three.js #23278): renderer.toneMapping
+    // and shader-side sRGB encoding apply, while RGBA8 storage avoids a
+    // second hardware encode and keeps blending in sRGB space — otherwise
+    // the semi-transparent AR floor shadow captures at half strength.
+    (this.renderTarget as WebGLRenderTarget & { isXRRenderTarget?: boolean })
+      .isXRRenderTarget = true;
+    this.renderTarget.texture.internalFormat = 'RGBA8';
   }
 
   private async pixelsToBlob(
